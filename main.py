@@ -29,8 +29,16 @@ app.add_middleware(
 )
 
 class ForecastRequest(BaseModel):
-    category: str
-    weeks: int = 4
+    category_id: int
+
+@app.get("/categories")
+def list_categories():
+    """
+    Devuelve la lista de categorías disponibles con su ID para que el cliente sepa qué enviar.
+    """
+    df = get_and_clean_data()
+    cats = [col for col in df.columns if col != "date"]
+    return [{"id": idx, "name": cat} for idx, cat in enumerate(cats)]
 
 @app.get("/")
 def root():
@@ -38,29 +46,34 @@ def root():
 
 @app.post(
     "/forecast",
-    dependencies=[Depends(get_api_key)]  # <- Protección con API Key
+    dependencies=[Depends(get_api_key)]
 )
 def get_forecast(request: ForecastRequest):
     # 1. Carga y limpieza de datos
     df = get_and_clean_data()
 
-    # 2. Validación de categoría
-    if request.category not in df.columns:
-        raise HTTPException(status_code=400, detail=f"Category '{request.category}' not found.")
+    # 2. Extraer lista de categorías y validar ID
+    cats = [col for col in df.columns if col != "date"]
+    if request.category_id < 0 or request.category_id >= len(cats):
+        raise HTTPException(
+            status_code=400,
+            detail=f"category_id '{request.category_id}' inválido. Debe estar entre 0 y {len(cats)-1}."
+        )
+    category_name = cats[request.category_id]
 
     # 3. Construir historial con datos originales
     history_list = [
         {
             "date": row["date"].strftime("%Y-%m-%d"),
-            "value": int(round(row[request.category]))
+            "value": int(round(row[category_name]))
         }
         for _, row in df.iterrows()
     ]
 
     # 4. Preparar DF para Prophet (log-transform)
-    df_cat = prepare_category_df(df, request.category)
-    # 5. Predicción
-    forecast_df = predict_next_weeks(df_cat, request.weeks)
+    df_cat = prepare_category_df(df, category_name)
+    # 5. Predicción para 4 semanas fijas
+    forecast_df = predict_next_weeks(df_cat, weeks=4)
 
     # 6. Formatear forecast
     forecasting_list = [
@@ -72,9 +85,11 @@ def get_forecast(request: ForecastRequest):
     ]
 
     return {
-        "category": request.category,
+        "category_id": request.category_id,
+        "category_name": category_name,
         "history": history_list,
         "forecasting": forecasting_list,
+        "weeks": 4
     }
 
 if __name__ == "__main__":

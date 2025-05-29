@@ -23,7 +23,7 @@ def predict_next_weeks(df: pd.DataFrame, weeks: int = 4) -> pd.DataFrame:
         weekly_seasonality=False,
         daily_seasonality=False,
         yearly_seasonality=False,
-        changepoint_prior_scale=0.1,  # control de flexibilidad de la tendencia
+        changepoint_prior_scale=0.1, 
         seasonality_mode='additive'
     )
     model.fit(df)
