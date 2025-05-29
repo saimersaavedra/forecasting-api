@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from data_utils import get_and_clean_data
 from predictor import prepare_category_df, predict_next_weeks
+import os
 
 app = FastAPI()
 
@@ -56,4 +57,5 @@ def get_forecast(request: ForecastRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
