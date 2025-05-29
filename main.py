@@ -17,6 +17,10 @@ class ForecastRequest(BaseModel):
     category: str
     weeks: int = 4
 
+@app.get("/")
+def root():
+    return {"message": "API funcionando correctamente"}
+
 @app.post("/forecast")
 def get_forecast(request: ForecastRequest):
     df = get_and_clean_data()
@@ -24,7 +28,7 @@ def get_forecast(request: ForecastRequest):
     if request.category not in df.columns:
         raise HTTPException(status_code=400, detail=f"Category '{request.category}' not found.")
 
-    # Para history, usa valores originales
+    # History con valores originales sin transformación
     history_list = [
         {
             "date": row["date"].strftime("%Y-%m-%d"),
@@ -49,7 +53,6 @@ def get_forecast(request: ForecastRequest):
         "history": history_list,
         "forecasting": forecasting_list,
     }
-
 
 if __name__ == "__main__":
     import uvicorn
