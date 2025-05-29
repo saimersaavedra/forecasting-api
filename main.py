@@ -53,7 +53,7 @@ class ForecastProductResponse(BaseModel):
 def root():
     return {"message": "API funcionando correctamente"}
 
-@app.post(
+@app.get(
     "/forecast/category/{category}",
     response_model=ForecastCategoryResponse,
     dependencies=[Depends(get_api_key)]
@@ -106,7 +106,7 @@ def forecast_all_categories(weeks: int = 4):
     return {"forecasts": results}
 
 @app.get(
-    "/product/forecast/{product_id}",
+    "/forecast/product/{product_id}",
     response_model=ForecastProductResponse,
     dependencies=[Depends(get_api_key)]
 )

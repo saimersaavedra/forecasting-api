@@ -21,10 +21,12 @@ def get_and_clean_category_data():
     df = df.sort_values('date').reset_index(drop=True)
     return df
 
+from datetime import timedelta
+
 def get_and_clean_product_data(product_id: str) -> pd.DataFrame:
     """
     Fetch y limpia datos de ventas semanales por producto.
-    Elimina semanas futuras a la fecha actual.
+    Elimina semanas futuras y filtra solo las últimas 12 semanas (aprox. 3 meses).
     """
     endpoint = f"{API_URL.rstrip('/')}/product/weekly-sales/{product_id}"
     resp = requests.get(endpoint)
@@ -36,7 +38,15 @@ def get_and_clean_product_data(product_id: str) -> pd.DataFrame:
     df = df.rename(columns={'week': 'date', 'totalSales': 'value'})
     df['date'] = pd.to_datetime(df['date'])
     df = df.sort_values('date').reset_index(drop=True)
+    
     # eliminar semanas futuras
     today = datetime.now()
     df = df[df['date'] <= today].reset_index(drop=True)
+
+    # filtrar últimas 12 semanas (3 meses aprox.)
+    if not df.empty:
+        max_date = df['date'].max()
+        cutoff_date = max_date - timedelta(weeks=12)
+        df = df[df['date'] >= cutoff_date].reset_index(drop=True)
+
     return df
