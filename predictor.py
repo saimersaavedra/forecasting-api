@@ -48,3 +48,42 @@ def predict_next_weeks(df: pd.DataFrame, weeks: int = 4) -> pd.DataFrame:
     forecast['yhat'] = yhat.clip(lower=0).round().astype(int)
 
     return forecast[['ds', 'yhat']].tail(weeks)
+
+def es_forecast_inestable(history: list[int], forecast: list[int], umbral: float = 1.5) -> bool:
+    """
+    Retorna True si el promedio del forecast es mayor que el umbral multiplicado por el promedio
+    de las últimas 3 semanas de historial (por defecto, 1.5x más).
+    """
+    if not history or not forecast:
+        return False
+    avg_hist = np.mean(history[-3:])
+    avg_fore = np.mean(forecast)
+    return avg_hist > 0 and avg_fore > avg_hist * umbral
+
+
+def predict_product_sales(df: pd.DataFrame, weeks: int = 4) -> pd.DataFrame:
+    """
+    Predicción robusta para productos: usa Prophet si hay suficientes datos,
+    o fallback a promedio móvil si los datos son ruidosos o escasos.
+    """
+    if df['y'].gt(0).sum() < 6:  # menos de 6 semanas con ventas
+        # Fallback: promedio móvil
+        avg = df['y'].mean()
+        dates = pd.date_range(start=df['ds'].max() + pd.Timedelta(weeks=1), periods=weeks, freq='W')
+        return pd.DataFrame({'ds': dates, 'yhat': np.expm1(avg).round().astype(int)})
+    
+    model = Prophet(
+        weekly_seasonality=True,
+        yearly_seasonality=False,
+        daily_seasonality=False,
+        changepoint_prior_scale=0.05,  # más conservador
+        seasonality_mode='additive'
+    )
+    model.fit(df)
+    future = model.make_future_dataframe(periods=weeks, freq='W')
+    forecast = model.predict(future)
+
+    yhat = np.expm1(forecast['yhat'].clip(lower=0))
+    forecast['yhat'] = yhat.clip(lower=0).round().astype(int)
+    return forecast[['ds', 'yhat']].tail(weeks)
+

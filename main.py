@@ -2,12 +2,15 @@ import os
 from fastapi import FastAPI, HTTPException, Depends, Security, Path
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security.api_key import APIKeyHeader
+import numpy as np
 from pydantic import BaseModel
 from data_utils import get_and_clean_category_data, get_and_clean_product_data
 from predictor import (
     prepare_category_df,
     prepare_product_df,
-    predict_next_weeks
+    predict_next_weeks,
+    predict_product_sales,
+    es_forecast_inestable
 )
 import uvicorn
 
@@ -43,28 +46,34 @@ class ForecastCategoryResponse(BaseModel):
     forecasting: list[Point]
     weeks: int
 
+class ForecastCategoryRequest(BaseModel):
+    category: str
+    weeks: int = 4  # Valor por defecto
+
 class ForecastProductResponse(BaseModel):
     product_id: str
     history: list[Point]
     forecasting: list[Point]
-    weeks: int
+    weeks: int = 4
 
-@app.get("/", response_model=dict)
-def root():
-    return {"message": "API funcionando correctamente"}
+class ForecastProductRequest(BaseModel):
+    product_id: str
+    weeks: int = 4
 
-@app.get(
-    "/forecast/category/{category}",
+# --- Rutas de la API ---
+@app.post(
+    "/forecast/category",
     response_model=ForecastCategoryResponse,
     dependencies=[Depends(get_api_key)]
 )
-def get_forecast(
-    category: str = Path(..., description="Nombre de la categoría a predecir"),
-    weeks: int = 4
-):
+def get_forecast(body: ForecastCategoryRequest):
+    category = body.category
+    weeks = body.weeks
+
     df = get_and_clean_category_data()
     if category not in df.columns:
         raise HTTPException(status_code=404, detail=f"Category '{category}' no encontrada.")
+    
     history = [
         Point(date=row["date"].strftime("%Y-%m-%d"), value=int(round(row[category])))
         for _, row in df.iterrows()
@@ -82,8 +91,9 @@ def get_forecast(
         weeks=weeks
     )
 
+
 @app.get(
-    "/forecast/category/all",
+    "/forecast/category",
     response_model=dict,
     dependencies=[Depends(get_api_key)]
 )
@@ -105,15 +115,17 @@ def forecast_all_categories(weeks: int = 4):
         results.append({"category": cat, "history": history, "forecasting": forecasting, "weeks": weeks})
     return {"forecasts": results}
 
-@app.get(
-    "/forecast/product/{product_id}",
+from fastapi import Body
+
+@app.post(
+    "/forecast/product",
     response_model=ForecastProductResponse,
     dependencies=[Depends(get_api_key)]
 )
-def forecast_product(
-    product_id: str = Path(..., description="ID del producto para predicción"),
-    weeks: int = 4
-):
+def forecast_product(request: ForecastProductRequest = Body(...)):
+    product_id = request.product_id
+    weeks = request.weeks
+
     df = get_and_clean_product_data(product_id)
     if df.empty:
         raise HTTPException(status_code=404, detail="No se encontraron ventas para este producto")
@@ -122,17 +134,29 @@ def forecast_product(
         for _, row in df.iterrows()
     ]
     df_prod = prepare_product_df(df)
-    forecast_df = predict_next_weeks(df_prod, weeks=weeks)
-    forecasting = [
-        Point(date=row["ds"].strftime("%Y-%m-%d"), value=int(round(row["yhat"])))
-        for _, row in forecast_df.iterrows()
-    ]
+    forecast_df = predict_product_sales(df_prod, weeks=weeks)
+    forecast_values = forecast_df["yhat"].tolist()
+    history_values = [row["value"] for _, row in df.iterrows()]
+
+    if es_forecast_inestable(history_values, forecast_values):
+        promedio = int(round(np.mean(history_values[-3:])))
+        forecasting = [
+            Point(date=row["ds"].strftime("%Y-%m-%d"), value=promedio)
+            for _, row in forecast_df.iterrows()
+        ]
+    else:
+        forecasting = [
+            Point(date=row["ds"].strftime("%Y-%m-%d"), value=int(round(row["yhat"])))
+            for _, row in forecast_df.iterrows()
+        ]
+
     return ForecastProductResponse(
         product_id=product_id,
         history=history,
         forecasting=forecasting,
         weeks=weeks
     )
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
