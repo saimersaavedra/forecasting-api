@@ -10,7 +10,7 @@ if os.getenv("ENV") != "production":
 API_URL = os.getenv("API_URL")
 
 def get_and_clean_data():
-    endpoint = f"{API_URL.rstrip('/')}/dashboard/sales-category"  # Asegura que no tenga doble slash
+    endpoint = f"{API_URL.rstrip('/')}/category/sales-category"  
     response = requests.get(endpoint)
     response.raise_for_status()
 
