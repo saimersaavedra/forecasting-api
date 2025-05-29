@@ -24,20 +24,32 @@ def get_forecast(request: ForecastRequest):
     if request.category not in df.columns:
         raise HTTPException(status_code=400, detail=f"Category '{request.category}' not found.")
 
+    # Para history, usa valores originales
+    history_list = [
+        {
+            "date": row["date"].strftime("%Y-%m-%d"),
+            "value": int(round(row[request.category]))
+        }
+        for _, row in df.iterrows()
+    ]
+
     df_cat = prepare_category_df(df, request.category)
     forecast = predict_next_weeks(df_cat, request.weeks)
 
+    forecasting_list = [
+        {
+            "date": row["ds"].strftime("%Y-%m-%d"),
+            "value": int(round(row["yhat"]))
+        }
+        for _, row in forecast.iterrows()
+    ]
+
     return {
         "category": request.category,
-        "history": [
-            {"date": row["ds"].strftime("%Y-%m-%d"), "value": int(round(float(row["y"])))}
-            for _, row in df_cat.iterrows()
-        ],
-        "forecasting": [
-            {"date": row["ds"].strftime("%Y-%m-%d"), "value": int(round(float(row["yhat"])))}
-            for _, row in forecast.iterrows()
-        ]
+        "history": history_list,
+        "forecasting": forecasting_list,
     }
+
 
 if __name__ == "__main__":
     import uvicorn
