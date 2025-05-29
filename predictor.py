@@ -14,6 +14,18 @@ def prepare_category_df(df: pd.DataFrame, category: str) -> pd.DataFrame:
     df_cat['y'] = np.log1p(df_cat['y'])
     return df_cat
 
+def prepare_product_df(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Prepara df para Prophet para producto:
+     - renombra date→ds y value→y
+     - asegura valores ≥0 y aplica log1p
+    """
+    df_prod = df[['date', 'value']].copy()
+    df_prod = df_prod.rename(columns={'date': 'ds', 'value': 'y'})
+    df_prod['y'] = df_prod['y'].clip(lower=0)
+    df_prod['y'] = np.log1p(df_prod['y'])
+    return df_prod
+
 def predict_next_weeks(df: pd.DataFrame, weeks: int = 4) -> pd.DataFrame:
     """
     Entrena Prophet sin estacionalidades y con tendencia suavizada,
@@ -23,7 +35,7 @@ def predict_next_weeks(df: pd.DataFrame, weeks: int = 4) -> pd.DataFrame:
         weekly_seasonality=False,
         daily_seasonality=False,
         yearly_seasonality=False,
-        changepoint_prior_scale=0.1, 
+        changepoint_prior_scale=0.1,  # control de flexibilidad de la tendencia
         seasonality_mode='additive'
     )
     model.fit(df)
