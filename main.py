@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security.api_key import APIKeyHeader
 import numpy as np
 from pydantic import BaseModel
-from data_utils import get_and_clean_category_data, get_and_clean_product_data
+from data_utils import get_and_clean_category_data, get_and_clean_product_data, get_all_products
 from predictor import (
     prepare_category_df,
     prepare_product_df,
@@ -157,6 +157,59 @@ def forecast_product(request: ForecastProductRequest = Body(...)):
         weeks=weeks
     )
 
+@app.get(
+    "/forecast/product",
+    response_model=dict,
+    dependencies=[Depends(get_api_key)]
+)
+def forecast_all_products(weeks: int = 4):
+    """
+    Genera pronósticos para todos los productos (id+name)
+    devolviendo sólo los que tienen historial.
+    """
+    products = get_all_products()
+    results = []
+
+    for prod in products:
+        pid = prod["id"]
+        name = prod["name"]
+        df = get_and_clean_product_data(pid)
+        if df.empty:
+            continue
+
+        # Construir historial
+        history = [
+            Point(date=row["date"].strftime("%Y-%m-%d"), value=int(row["value"]))
+            for _, row in df.iterrows()
+        ]
+
+        # Forecast con lógica existente
+        df_prod = prepare_product_df(df)
+        fc_df = predict_product_sales(df_prod, weeks)
+        yhat_vals = fc_df["yhat"].tolist()
+        hist_vals = [pt.value for pt in history]
+
+        if es_forecast_inestable(hist_vals, yhat_vals):
+            avg3 = int(round(np.mean(hist_vals[-3:])))
+            forecasting = [
+                Point(date=r["ds"].strftime("%Y-%m-%d"), value=avg3)
+                for _, r in fc_df.iterrows()
+            ]
+        else:
+            forecasting = [
+                Point(date=r["ds"].strftime("%Y-%m-%d"), value=int(r["yhat"]))
+                for _, r in fc_df.iterrows()
+            ]
+
+        results.append({
+            "product_id": pid,
+            "name": name,
+            "history": history,
+            "forecasting": forecasting,
+            "weeks": weeks
+        })
+
+    return {"forecasts": results}
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))

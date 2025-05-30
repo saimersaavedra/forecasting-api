@@ -23,10 +23,6 @@ def get_and_clean_category_data():
 
 
 def get_and_clean_product_data(product_id: str) -> pd.DataFrame:
-    """
-    Fetch y devuelve datos de ventas semanales por producto tal como llegan del endpoint.
-    No se aplican filtros de fecha ni recortes.
-    """
     endpoint = f"{API_URL.rstrip('/')}/product/weekly-sales/{product_id}"
     resp = requests.get(endpoint)
     resp.raise_for_status()
@@ -37,3 +33,15 @@ def get_and_clean_product_data(product_id: str) -> pd.DataFrame:
     df['date'] = pd.to_datetime(df['date'])
     df = df.sort_values('date').reset_index(drop=True)
     return df
+
+def get_all_products() -> list[dict]:
+    """
+    Consume el endpoint GET /product de la API interna
+    y devuelve la lista de productos (cada uno con id y name).
+    """
+    endpoint = f"{API_URL.rstrip('/')}/product"
+    resp = requests.get(endpoint)
+    resp.raise_for_status()
+    all_products = resp.json()  # lista de objetos con muchos campos
+    # Simplificamos a sólo id y name:
+    return [{"id": p["id"], "name": p["name"]} for p in all_products]
