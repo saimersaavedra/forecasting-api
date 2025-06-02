@@ -28,10 +28,8 @@ def get_and_clean_category_data():
         df['date'] = pd.to_datetime(df['date'], errors='coerce')
         df = df.dropna(subset=['date']).sort_values('date').reset_index(drop=True)
 
-        # 5) Imprimir cuántas filas trajo y las primeras 5 filas
+        # 5) Imprimir cuántas filas trajo 
         print(f"[get_and_clean_category_data] Datos obtenidos: {len(df)} filas.")
-        print("Primeras 5 filas del DataFrame de categorías ya limpio:")
-        print(df.head().to_string(index=False))
 
         return df
     except Exception as e:
@@ -53,10 +51,8 @@ def get_and_clean_product_data(product_id: str) -> pd.DataFrame:
         df['date'] = pd.to_datetime(df['date'])
         df = df.sort_values('date').reset_index(drop=True)
 
-        # 1) Imprimir cuántas filas trajo y las primeras 5 filas:
+        # 1) Imprimir cuántas filas trajo 
         print(f"[get_and_clean_product_data] Producto {product_id}: {len(df)} filas limpias.")
-        print("Primeras 5 filas del DataFrame de producto:")
-        print(df.head().to_string(index=False))
 
         return df
     except Exception as e:
